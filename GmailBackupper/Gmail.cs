@@ -24,13 +24,77 @@ namespace GmailBackupper
             _refreshToken = refreshToken;
         }
 
-        public async Task GetMessages()
+        public async Task MoveToTrash(string id)
+        {
+            var uri = $"https://www.googleapis.com/gmail/v1/users/me/messages/{id}/trash";
+            var json = await Post(uri);
+        }
+
+        public async Task GetMessage(string id, string format)
+        {
+            var uri = "https://www.googleapis.com/gmail/v1/users/me/messages/" + id;
+            if (format != MessageFormat.Full) uri = uri + "?format=" + format;
+            var json = await Get(uri);
+        }
+
+        public static class MessageFormat
+        {
+            public const string Full = "full";
+            public const string Metadata = "metadata";
+            public const string Minimal = "minimal";
+            public const string Raw = "raw";
+        }
+
+        public MessageEnamerator GetMessageEnamerator()
+        {
+            return new MessageEnamerator(GetMessages);
+        }
+
+        private async Task<MessagesResultModel> GetMessages(string pageToken = null)
         {
             await RefreshAccessToken();
 
             var uri = "https://www.googleapis.com/gmail/v1/users/me/messages?includeSpamTrash=true";
+            if (pageToken != null) uri = uri + "&pageToken=" + pageToken;
             var json = await Get(uri);
-            var model = JsonConvert.DeserializeObject<MessagesResultModel>(json);
+            return JsonConvert.DeserializeObject<MessagesResultModel>(json);
+        }
+
+        public class MessageEnamerator
+        {
+            private Func<string, Task<MessagesResultModel>> _messagesGetter;
+            private SemaphoreSlim _sem = new SemaphoreSlim(1);
+
+            private MessagesResultModel _current;
+            private int _index;
+
+            public MessageEnamerator(Func<string, Task<MessagesResultModel>> messagesGetter)
+            {
+                _messagesGetter = messagesGetter;
+            }
+
+            public async Task<MessagesResultMessageModel> GetNextMessage()
+            {
+                try
+                {
+                    await _sem.WaitAsync();
+                    if (_current == null)
+                    {
+                        _current = await _messagesGetter(null);
+                    }
+                    else if (_current.Messages.Length <= _index)
+                    {
+                        _current = await _messagesGetter(_current.NextPageToken);
+                        _index = 0;
+                    }
+
+                    return _current.Messages[_index++];
+                }
+                finally
+                {
+                    _sem.Release();
+                }
+            }
         }
 
         private async Task RefreshAccessToken()

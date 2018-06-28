@@ -1,0 +1,24 @@
+start
+
+repeat
+  :ヘッダ取得<
+
+  if (格納済みか？) then (yes)
+  else (no)
+    :生データ取得<
+    :格納]
+  endif
+
+  if (ごみ箱にあるか？) then (yes)
+  else (no)
+    if (スターがついているか？) then (yes)
+    else (no)
+      if (期限切れか？) then (yes)
+        :ごみ箱に移動>
+      else (no)
+      endif
+    endif
+  endif
+repeat while (まだあるか？)
+
+stop
