@@ -3,20 +3,23 @@ start
 repeat
   :ヘッダ取得<
 
-  if (格納済みか？) then (yes)
+  if (チャットか？) then (yes)
   else (no)
-    :生データ取得<
-    :格納]
-  endif
-
-  if (ごみ箱にあるか？) then (yes)
-  else (no)
-    if (スターがついているか？) then (yes)
+    if (格納済みか？) then (yes)
     else (no)
-      if (期限切れか？) then (yes)
-        :ごみ箱に移動>
+      :生データ取得<
+      :格納]
+    endif
+
+    if (INBOXにあるか？) then (yes)
+      if (スターがついているか？) then (yes)
       else (no)
+        if (期限切れか？) then (yes)
+          :ごみ箱に移動>
+        else (no)
+        endif
       endif
+    else (no)
     endif
   endif
 repeat while (まだあるか？)
