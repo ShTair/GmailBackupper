@@ -12,13 +12,17 @@ namespace GmailBackupper
 
         private static async Task Run(string cid, string cs, string rt)
         {
+            var jp = TimeSpan.FromHours(9);
             var gmail = new Gmail(cid, cs, rt);
             var messages = gmail.GetMessageEnamerator();
             while (true)
             {
                 var m = await messages.GetNextMessage();
-                await gmail.GetMessage(m.Id, Gmail.MessageFormat.Raw);
-                await gmail.MoveToTrash(m.Id);
+                var message = await gmail.GetMessage(m.Id, Gmail.MessageFormat.Minimal);
+                var time = DateTimeOffset.FromUnixTimeMilliseconds(message.internalDate).ToOffset(jp);
+
+
+                //await gmail.MoveToTrash(m.Id);
             }
         }
     }

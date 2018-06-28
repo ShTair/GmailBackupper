@@ -30,11 +30,12 @@ namespace GmailBackupper
             var json = await Post(uri);
         }
 
-        public async Task GetMessage(string id, string format)
+        public async Task<MessageResultModel> GetMessage(string id, string format)
         {
             var uri = "https://www.googleapis.com/gmail/v1/users/me/messages/" + id;
             if (format != MessageFormat.Full) uri = uri + "?format=" + format;
             var json = await Get(uri);
+            return JsonConvert.DeserializeObject<MessageResultModel>(json);
         }
 
         public static class MessageFormat

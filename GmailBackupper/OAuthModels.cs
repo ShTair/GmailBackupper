@@ -42,10 +42,10 @@ namespace GmailBackupper
         public string[] labelIds { get; set; }
         public string snippet { get; set; }
         public string historyId { get; set; }
-        public string internalDate { get; set; }
+        public long internalDate { get; set; }
         public Payload payload { get; set; }
         public int sizeEstimate { get; set; }
-        public byte[] raw { get; set; }
+        public string raw { get; set; }
     }
 
     public class Payload
@@ -62,7 +62,7 @@ namespace GmailBackupper
     {
         public string attachmentId { get; set; }
         public int size { get; set; }
-        public byte[] data { get; set; }
+        public string data { get; set; }
     }
 
     public class Header
