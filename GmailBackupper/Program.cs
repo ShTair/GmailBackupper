@@ -11,6 +11,8 @@ namespace GmailBackupper
     class Program
     {
         private static readonly Regex _regex = new Regex(@"[-_]");
+        private static readonly Regex _fromRegex = new Regex(@"""?(.*?)""?\s*<(.+)>");
+        private static readonly Regex _fileRegex = new Regex(@"[\\/:*?""<>|]");
         private static readonly TimeSpan _jp = TimeSpan.FromHours(9);
 
         static void Main(string[] args)
@@ -60,7 +62,6 @@ namespace GmailBackupper
 
                 var pathE = Path.Combine(bupath, time.ToString("yyyy"), time.ToString("yyyy-MM"), time.ToString("yyyy-MM-dd"));
                 Directory.CreateDirectory(pathE);
-                var fileE = Path.Combine(pathE, message.id + ".eml");
 
                 if (!File.Exists(fileJ))
                 {
@@ -71,6 +72,27 @@ namespace GmailBackupper
                             await src.CopyToAsync(stream);
                         });
                     }
+
+                    var json = await File.ReadAllTextAsync(tempFile);
+                    var md = JsonConvert.DeserializeObject<MessageResultModel>(json);
+                    var fn = $"{time:yyyyMMddHHmmss}_{message.id}_";
+
+                    var from = md.payload.headers.FirstOrDefault(t => t.name == "From");
+                    if (from != null)
+                    {
+                        var m = _fromRegex.Match(from.value);
+                        if (!m.Success) throw new Exception(m.Value);
+                        fn += (string.IsNullOrWhiteSpace(m.Groups[1].Value) ? m.Groups[2].Value : m.Groups[1].Value).Trim(20) + "_";
+                    }
+
+                    var subj = md.payload.headers.FirstOrDefault(t => t.name == "Subject");
+                    if (subj != null)
+                    {
+                        fn += subj.value.Trim(20);
+                    }
+
+                    fn = _fileRegex.Replace(fn, "");
+                    var fileE = Path.Combine(pathE, fn + ".eml");
 
                     message = await gmail.GetMessage(mid.Id, Gmail.MessageFormat.Raw);
                     var str = _regex.Replace(message.raw, m => m.Value == "-" ? "+" : "/");
