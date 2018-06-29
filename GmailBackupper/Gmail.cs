@@ -38,6 +38,12 @@ namespace GmailBackupper
             return JsonConvert.DeserializeObject<MessageResultModel>(json);
         }
 
+        public async Task GetMessageStr(string id, Func<Stream, Task> func)
+        {
+            var uri = "https://www.googleapis.com/gmail/v1/users/me/messages/" + id;
+            await GetBytes(uri, func);
+        }
+
         public static class MessageFormat
         {
             public const string Full = "full";
@@ -123,6 +129,20 @@ namespace GmailBackupper
             finally
             {
                 _refreshSem.Release();
+            }
+        }
+
+        private async Task GetBytes(string uri, Func<Stream, Task> func)
+        {
+            var request = WebRequest.CreateHttp(uri);
+            request.Method = "Get";
+            request.ContentType = "application/json";
+            request.Headers.Add(HttpRequestHeader.Authorization, "Bearer " + _accessToken);
+
+            using (var response = await request.GetResponseAsync())
+            using (var stream = response.GetResponseStream())
+            {
+                await func(stream);
             }
         }
 
