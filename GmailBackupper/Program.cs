@@ -29,19 +29,19 @@ namespace GmailBackupper
                 {
                     var acsj = await File.ReadAllTextAsync(acsp);
                     var acs = JsonConvert.DeserializeObject<AccountSettings>(acsj);
-                    await Run(gs.ClientId, gs.ClientSecret, acs.RefreshToken, acs.BackupPath);
+                    await Run(gs.ClientId, gs.ClientSecret, acs.RefreshToken, acs.BackupPath, acs.Limit);
                 }
                 catch (Exception exp) { Console.WriteLine(exp.ToString()); }
             }
         }
 
-        private static async Task Run(string cid, string cs, string rt, string bupath)
+        private static async Task Run(string cid, string cs, string rt, string bupath, int limitday)
         {
             var _jp = TimeSpan.FromHours(9);
             var gmail = new Gmail(cid, cs, rt);
             var messages = gmail.GetMessageEnamerator();
 
-            var limit = DateTimeOffset.Now.AddDays(0);
+            var limit = DateTimeOffset.Now.AddDays(-limitday);
 
             while (true)
             {
@@ -93,8 +93,6 @@ namespace GmailBackupper
                             }
                         }
                     }
-
-                    //await gmail.MoveToTrash(m.Id);
                 }
 
                 Console.WriteLine();
