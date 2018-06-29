@@ -49,22 +49,24 @@ namespace GmailBackupper
             while (true)
             {
                 var mid = await messages.GetNextMessage();
-                var message = await gmail.GetMessage(mid.Id, Gmail.MessageFormat.Minimal);
+                Console.Write(mid.Id);
 
-                Console.Write(message.id);
+                var pathJ = Path.Combine(bupath, "json", mid.Id.Substring(14), mid.Id.Substring(12));
+                var fileJ = Path.Combine(pathJ, mid.Id + ".json");
 
-                var time = DateTimeOffset.FromUnixTimeMilliseconds(message.internalDate).ToOffset(_jp);
-                Console.Write(time.ToString(" yyyy-MM-dd HH:mm:ss"));
+                DateTimeOffset time;
+                MessageResultModel message;
 
-                var pathJ = Path.Combine(bupath, "json", message.id.Substring(14), message.id.Substring(12));
-                Directory.CreateDirectory(pathJ);
-                var fileJ = Path.Combine(pathJ, message.id + ".json");
-
-                var pathE = Path.Combine(bupath, time.ToString("yyyy"), time.ToString("yyyy-MM"), time.ToString("yyyy-MM-dd"));
-                Directory.CreateDirectory(pathE);
-
-                if (!File.Exists(fileJ))
+                if (File.Exists(fileJ))
                 {
+                    var json = await File.ReadAllTextAsync(fileJ);
+                    message = JsonConvert.DeserializeObject<MessageResultModel>(json);
+                    time = DateTimeOffset.FromUnixTimeMilliseconds(message.internalDate).ToOffset(_jp);
+                    Console.Write(time.ToString(" yyyy-MM-dd HH:mm:ss"));
+                }
+                else
+                {
+                    Directory.CreateDirectory(pathJ);
                     using (var stream = File.Create(tempFile))
                     {
                         await gmail.GetMessageStr(mid.Id, async src =>
@@ -74,10 +76,12 @@ namespace GmailBackupper
                     }
 
                     var json = await File.ReadAllTextAsync(tempFile);
-                    var md = JsonConvert.DeserializeObject<MessageResultModel>(json);
+                    message = JsonConvert.DeserializeObject<MessageResultModel>(json);
+                    time = DateTimeOffset.FromUnixTimeMilliseconds(message.internalDate).ToOffset(_jp);
+                    Console.Write(time.ToString(" yyyy-MM-dd HH:mm:ss"));
                     var fn = $"{time:yyyyMMddHHmmss}_{message.id}_";
 
-                    var from = md.payload.headers.FirstOrDefault(t => t.name == "From");
+                    var from = message.payload.headers.FirstOrDefault(t => t.name == "From");
                     if (from != null)
                     {
                         var m = _fromRegex.Match(from.value);
@@ -85,17 +89,19 @@ namespace GmailBackupper
                         fn += (string.IsNullOrWhiteSpace(m.Groups[1].Value) ? m.Groups[2].Value : m.Groups[1].Value).Trim(20) + "_";
                     }
 
-                    var subj = md.payload.headers.FirstOrDefault(t => t.name == "Subject");
+                    var subj = message.payload.headers.FirstOrDefault(t => t.name == "Subject");
                     if (subj != null)
                     {
                         fn += subj.value.Trim(20);
                     }
 
                     fn = _fileRegex.Replace(fn, "");
+                    var pathE = Path.Combine(bupath, time.ToString("yyyy"), time.ToString("yyyy-MM"), time.ToString("yyyy-MM-dd"));
+                    Directory.CreateDirectory(pathE);
                     var fileE = Path.Combine(pathE, fn + ".eml");
 
-                    message = await gmail.GetMessage(mid.Id, Gmail.MessageFormat.Raw);
-                    var str = _regex.Replace(message.raw, m => m.Value == "-" ? "+" : "/");
+                    var mm = await gmail.GetMessage(mid.Id, Gmail.MessageFormat.Raw);
+                    var str = _regex.Replace(mm.raw, m => m.Value == "-" ? "+" : "/");
                     var raw = Convert.FromBase64String(str);
                     await File.WriteAllBytesAsync(fileE, raw);
                     File.SetCreationTime(fileE, time.DateTime);
@@ -108,11 +114,12 @@ namespace GmailBackupper
                     Console.Write(" Store");
                 }
 
-                if (message.labelIds.Any(t => t == "INBOX"))
+                if (time < limit)
                 {
-                    if (message.labelIds.All(t => t != "STARRED"))
+                    message = await gmail.GetMessage(mid.Id, Gmail.MessageFormat.Minimal);
+                    if (message.labelIds.Any(t => t == "INBOX"))
                     {
-                        if (time < limit)
+                        if (message.labelIds.All(t => t != "STARRED"))
                         {
                             await gmail.MoveToTrash(mid.Id);
                             Console.Write(" Trash");
