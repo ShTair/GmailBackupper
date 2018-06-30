@@ -16,5 +16,7 @@
         public string BackupPath { get; set; }
 
         public int Limit { get; set; }
+
+        public string[] TargetLabels { get; set; }
     }
 }

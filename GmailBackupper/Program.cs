@@ -31,13 +31,13 @@ namespace GmailBackupper
                 {
                     var aSettingsJson = await File.ReadAllTextAsync(aSettingsPath);
                     var aSettings = JsonConvert.DeserializeObject<AccountSettings>(aSettingsJson);
-                    await Run(gSettings.ClientId, gSettings.ClientSecret, aSettings.RefreshToken, aSettings.BackupPath, aSettings.Limit);
+                    await Run(gSettings.ClientId, gSettings.ClientSecret, aSettings.RefreshToken, aSettings.BackupPath, aSettings.Limit, aSettings.TargetLabels);
                 }
                 catch (Exception exp) { Console.WriteLine(exp.ToString()); }
             }
         }
 
-        private static async Task Run(string clientId, string clientSecret, string refreshToken, string dstPath, int limitDays)
+        private static async Task Run(string clientId, string clientSecret, string refreshToken, string dstPath, int limitDays, string[] targetLabels)
         {
             var gmail = new Gmail(clientId, clientSecret, refreshToken);
             var messages = gmail.GetMessageEnamerator();
@@ -123,7 +123,7 @@ namespace GmailBackupper
                     if (time < limit)
                     {
                         message = await gmail.GetMessage(mid.Id, Gmail.MessageFormat.Minimal);
-                        if (message.labelIds.Any(t => t == "INBOX"))
+                        if (message.labelIds.Any(t => targetLabels.Contains(t)))
                         {
                             if (message.labelIds.All(t => t != "STARRED"))
                             {
