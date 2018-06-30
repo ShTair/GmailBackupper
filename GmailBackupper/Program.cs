@@ -12,7 +12,7 @@ namespace GmailBackupper
     {
         private static readonly Regex _regex = new Regex(@"[-_]");
         private static readonly Regex _fromRegex = new Regex(@"""?(.*?)""?\s*<(.+)>");
-        private static readonly Regex _fileRegex = new Regex(@"[\\/:*?""<>|]");
+        private static readonly Regex _fileRegex = new Regex(@"[\\/:*?""<>|\r\n\t]");
         private static readonly TimeSpan _jp = TimeSpan.FromHours(9);
 
         static void Main(string[] args)
@@ -49,6 +49,8 @@ namespace GmailBackupper
             while (true)
             {
                 var mid = await messages.GetNextMessage();
+                if (mid == null) break;
+
                 Console.Write(mid.Id);
 
                 var pathJ = Path.Combine(bupath, "json", mid.Id.Substring(14), mid.Id.Substring(12));
@@ -68,28 +70,35 @@ namespace GmailBackupper
 
                 var json = await File.ReadAllTextAsync(fileJ);
                 var message = JsonConvert.DeserializeObject<MessageResultModel>(json);
+                if (message == null || message.internalDate == 0)
+                {
+                    File.Delete(fileJ);
+                    Console.WriteLine();
+                    continue;
+                }
+
                 var time = DateTimeOffset.FromUnixTimeMilliseconds(message.internalDate).ToOffset(_jp);
                 Console.Write($" {time:yyyy-MM-dd HH:mm:ss}");
 
-                var fn = $"{time:yyyyMMddHHmmss}_{message.id}_";
+                var fn = $"{time:yyyyMMddHHmmss}_{message.id}";
                 var from = message.payload.headers.FirstOrDefault(t => t.name.Equals("From", StringComparison.CurrentCultureIgnoreCase));
                 if (from != null)
                 {
                     var m = _fromRegex.Match(from.value);
                     if (!m.Success)
                     {
-                        fn += from.value.Trim(20);
+                        fn += "_" + from.value.Trim(20);
                     }
                     else
                     {
-                        fn += (string.IsNullOrWhiteSpace(m.Groups[1].Value) ? m.Groups[2].Value : m.Groups[1].Value).Trim(20) + "_";
+                        fn += "_" + (string.IsNullOrWhiteSpace(m.Groups[1].Value) ? m.Groups[2].Value : m.Groups[1].Value).Trim(20);
                     }
                 }
 
                 var subj = message.payload.headers.FirstOrDefault(t => t.name.Equals("Subject", StringComparison.CurrentCultureIgnoreCase));
                 if (subj != null)
                 {
-                    fn += subj.value.Trim(20);
+                    fn += "_" + subj.value.Trim(20);
                 }
 
                 fn = _fileRegex.Replace(fn, "");
