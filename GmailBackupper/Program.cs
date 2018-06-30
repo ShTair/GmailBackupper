@@ -72,7 +72,7 @@ namespace GmailBackupper
                 Console.Write($" {time:yyyy-MM-dd HH:mm:ss}");
 
                 var fn = $"{time:yyyyMMddHHmmss}_{message.id}_";
-                var from = message.payload.headers.FirstOrDefault(t => t.name == "From");
+                var from = message.payload.headers.FirstOrDefault(t => t.name.Equals("From", StringComparison.CurrentCultureIgnoreCase));
                 if (from != null)
                 {
                     var m = _fromRegex.Match(from.value);
@@ -86,7 +86,7 @@ namespace GmailBackupper
                     }
                 }
 
-                var subj = message.payload.headers.FirstOrDefault(t => t.name == "Subject");
+                var subj = message.payload.headers.FirstOrDefault(t => t.name.Equals("Subject", StringComparison.CurrentCultureIgnoreCase));
                 if (subj != null)
                 {
                     fn += subj.value.Trim(20);
