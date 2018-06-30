@@ -2,15 +2,22 @@ start
 
 repeat
 
-    if (格納済みか？) then (yes)
-      :データをロード]
+    if (フルデータ格納済みか？) then (yes)
     else (no)
-      :生データ取得<
+      :フルデータ取得<
       :格納]
     endif
 
+    :データロード]
+
+    if (生データ格納済みか？) then (yes)
+    else (no)
+    :生データ取得<
+    :格納]
+    endif
+
     if (期限切れか？) then (yes)
-      :ヘッダ取得<
+      :最小データ取得<
       if (INBOXにあるか？) then (yes)
         if (スターがついているか？) then (yes)
         else (no)

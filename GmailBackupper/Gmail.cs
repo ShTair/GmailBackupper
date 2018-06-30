@@ -91,6 +91,7 @@ namespace GmailBackupper
                     }
                     else if (_current.Messages.Length <= _index)
                     {
+                        await Task.Delay(TimeSpan.FromSeconds(5));
                         _current = await _messagesGetter(_current.NextPageToken);
                         _index = 0;
                     }

@@ -54,60 +54,58 @@ namespace GmailBackupper
                 var pathJ = Path.Combine(bupath, "json", mid.Id.Substring(14), mid.Id.Substring(12));
                 var fileJ = Path.Combine(pathJ, mid.Id + ".json");
 
-                DateTimeOffset time;
-                MessageResultModel message;
-
-                if (File.Exists(fileJ))
-                {
-                    var json = await File.ReadAllTextAsync(fileJ);
-                    message = JsonConvert.DeserializeObject<MessageResultModel>(json);
-                    time = DateTimeOffset.FromUnixTimeMilliseconds(message.internalDate).ToOffset(_jp);
-                    Console.Write(time.ToString(" yyyy-MM-dd HH:mm:ss"));
-                }
-                else
+                if (!File.Exists(fileJ))
                 {
                     Directory.CreateDirectory(pathJ);
-                    using (var stream = File.Create(tempFile))
+                    using (var stream = File.Create(fileJ))
                     {
                         await gmail.GetMessageStr(mid.Id, async src =>
                         {
                             await src.CopyToAsync(stream);
                         });
                     }
+                }
 
-                    var json = await File.ReadAllTextAsync(tempFile);
-                    message = JsonConvert.DeserializeObject<MessageResultModel>(json);
-                    time = DateTimeOffset.FromUnixTimeMilliseconds(message.internalDate).ToOffset(_jp);
-                    Console.Write(time.ToString(" yyyy-MM-dd HH:mm:ss"));
-                    var fn = $"{time:yyyyMMddHHmmss}_{message.id}_";
+                var json = await File.ReadAllTextAsync(fileJ);
+                var message = JsonConvert.DeserializeObject<MessageResultModel>(json);
+                var time = DateTimeOffset.FromUnixTimeMilliseconds(message.internalDate).ToOffset(_jp);
+                Console.Write($" {time:yyyy-MM-dd HH:mm:ss}");
 
-                    var from = message.payload.headers.FirstOrDefault(t => t.name == "From");
-                    if (from != null)
+                var fn = $"{time:yyyyMMddHHmmss}_{message.id}_";
+                var from = message.payload.headers.FirstOrDefault(t => t.name == "From");
+                if (from != null)
+                {
+                    var m = _fromRegex.Match(from.value);
+                    if (!m.Success)
                     {
-                        var m = _fromRegex.Match(from.value);
-                        if (!m.Success) throw new Exception(m.Value);
+                        fn += from.value.Trim(20);
+                    }
+                    else
+                    {
                         fn += (string.IsNullOrWhiteSpace(m.Groups[1].Value) ? m.Groups[2].Value : m.Groups[1].Value).Trim(20) + "_";
                     }
+                }
 
-                    var subj = message.payload.headers.FirstOrDefault(t => t.name == "Subject");
-                    if (subj != null)
-                    {
-                        fn += subj.value.Trim(20);
-                    }
+                var subj = message.payload.headers.FirstOrDefault(t => t.name == "Subject");
+                if (subj != null)
+                {
+                    fn += subj.value.Trim(20);
+                }
 
-                    fn = _fileRegex.Replace(fn, "");
-                    var pathE = Path.Combine(bupath, time.ToString("yyyy"), time.ToString("yyyy-MM"), time.ToString("yyyy-MM-dd"));
+                fn = _fileRegex.Replace(fn, "");
+                var pathE = Path.Combine(bupath, time.ToString("yyyy"), time.ToString("yyyy-MM"), time.ToString("yyyy-MM-dd"));
+                var fileE = Path.Combine(pathE, fn + ".eml");
+
+                if (!File.Exists(fileE))
+                {
                     Directory.CreateDirectory(pathE);
-                    var fileE = Path.Combine(pathE, fn + ".eml");
-
                     var mm = await gmail.GetMessage(mid.Id, Gmail.MessageFormat.Raw);
                     var str = _regex.Replace(mm.raw, m => m.Value == "-" ? "+" : "/");
                     var raw = Convert.FromBase64String(str);
                     await File.WriteAllBytesAsync(fileE, raw);
+
                     File.SetCreationTime(fileE, time.DateTime);
                     File.SetLastWriteTime(fileE, time.DateTime);
-
-                    File.Move(tempFile, fileJ);
                     File.SetCreationTime(fileJ, time.DateTime);
                     File.SetLastWriteTime(fileJ, time.DateTime);
 
