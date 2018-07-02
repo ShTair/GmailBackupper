@@ -31,13 +31,13 @@ namespace GmailBackupper
                 {
                     var aSettingsJson = await File.ReadAllTextAsync(aSettingsPath);
                     var aSettings = JsonConvert.DeserializeObject<AccountSettings>(aSettingsJson);
-                    await Run(gSettings.ClientId, gSettings.ClientSecret, aSettings.RefreshToken, aSettings.BackupPath, aSettings.Limit, aSettings.TargetLabels);
+                    await Run(gSettings.ClientId, gSettings.ClientSecret, aSettings.RefreshToken, aSettings.BackupPath, aSettings.Limit, aSettings.DeleteRules);
                 }
                 catch (Exception exp) { Console.WriteLine(exp.ToString()); }
             }
         }
 
-        private static async Task Run(string clientId, string clientSecret, string refreshToken, string dstPath, int limitDays, string[] targetLabels)
+        private static async Task Run(string clientId, string clientSecret, string refreshToken, string dstPath, int limitDays, DeleteRule[] deleteRules)
         {
             var gmail = new Gmail(clientId, clientSecret, refreshToken);
             var me = gmail.GetMessageEnamerator();
@@ -113,13 +113,31 @@ namespace GmailBackupper
                     if (time < limit)
                     {
                         message = await me.GetMinimalMessage();
-                        if (message.LabelIds.Any(t => targetLabels.Contains(t)))
+                        bool isMatch = false;
+
+                        foreach (var deleteRule in deleteRules)
                         {
-                            if (message.LabelIds.All(t => t != "STARRED"))
+                            if (message.LabelIds.Contains(deleteRule.Id))
                             {
-                                await me.MoveToTrash();
-                                Console.Write(" Trash");
+                                if (deleteRule.Limit >= 0)
+                                {
+                                    var ilimit = DateTimeOffset.Now.AddDays(-deleteRule.Limit);
+                                    if (time < ilimit)
+                                    {
+                                        await me.MoveToTrash();
+                                        Console.Write(" Trash");
+                                    }
+                                }
+
+                                isMatch = true;
+                                break;
                             }
+                        }
+
+                        if (!isMatch)
+                        {
+                            await me.MoveToTrash();
+                            Console.Write(" Trash");
                         }
                     }
 

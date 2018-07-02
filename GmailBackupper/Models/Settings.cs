@@ -17,6 +17,13 @@
 
         public int Limit { get; set; }
 
-        public string[] TargetLabels { get; set; }
+        public DeleteRule[] DeleteRules { get; set; }
+    }
+
+    class DeleteRule
+    {
+        public string Id { get; set; }
+
+        public int Limit { get; set; }
     }
 }
