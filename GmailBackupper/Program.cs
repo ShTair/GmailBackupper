@@ -40,31 +40,23 @@ namespace GmailBackupper
         private static async Task Run(string clientId, string clientSecret, string refreshToken, string dstPath, int limitDays, string[] targetLabels)
         {
             var gmail = new Gmail(clientId, clientSecret, refreshToken);
-            var messages = gmail.GetMessageEnamerator();
+            var me = gmail.GetMessageEnamerator();
             var limit = DateTimeOffset.Now.AddDays(-limitDays);
 
-            while (true)
+            while (await me.Next())
             {
-                var mid = await messages.GetNextMessage();
-                if (mid == null) break;
-
                 try
                 {
-                    Console.Write(mid.Id);
+                    var id = me.CurrentMessageId;
+                    Console.Write(id);
 
-                    var jsonPath = Path.Combine(dstPath, "json", mid.Id.Substring(14), mid.Id.Substring(12));
-                    var jsonName = Path.Combine(jsonPath, mid.Id + ".json");
+                    var jsonPath = Path.Combine(dstPath, "json", id.Substring(14), id.Substring(12));
+                    var jsonName = Path.Combine(jsonPath, id + ".json");
 
                     if (!File.Exists(jsonName))
                     {
                         Directory.CreateDirectory(jsonPath);
-                        using (var stream = File.Create(jsonName))
-                        {
-                            await gmail.GetMessageStr(mid.Id, async src =>
-                            {
-                                await src.CopyToAsync(stream);
-                            });
-                        }
+                        await me.StoreFullMessage(jsonName);
                     }
 
                     var json = await File.ReadAllTextAsync(jsonName);
@@ -107,9 +99,7 @@ namespace GmailBackupper
                     if (!File.Exists(fileE))
                     {
                         Directory.CreateDirectory(pathE);
-                        var mm = await gmail.GetMessage(mid.Id, Gmail.MessageFormat.Raw);
-                        var str = _base64UrlRegex.Replace(mm.raw, m => m.Value == "-" ? "+" : "/");
-                        var raw = Convert.FromBase64String(str);
+                        var raw = await me.GetRawMessage();
                         await File.WriteAllBytesAsync(fileE, raw);
 
                         File.SetCreationTime(fileE, time.DateTime);
@@ -122,12 +112,12 @@ namespace GmailBackupper
 
                     if (time < limit)
                     {
-                        message = await gmail.GetMessage(mid.Id, Gmail.MessageFormat.Minimal);
+                        message = await me.GetMinimalMessage();
                         if (message.labelIds.Any(t => targetLabels.Contains(t)))
                         {
                             if (message.labelIds.All(t => t != "STARRED"))
                             {
-                                await gmail.MoveToTrash(mid.Id);
+                                await me.MoveToTrash();
                                 Console.Write(" Trash");
                             }
                         }

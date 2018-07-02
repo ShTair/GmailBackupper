@@ -2,6 +2,7 @@
 using System;
 using System.IO;
 using System.Net;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -24,13 +25,13 @@ namespace GmailBackupper
             _refreshToken = refreshToken;
         }
 
-        public async Task MoveToTrash(string id)
+        private async Task MoveToTrash(string id)
         {
             var uri = $"https://www.googleapis.com/gmail/v1/users/me/messages/{id}/trash";
             var json = await Post(uri);
         }
 
-        public async Task<MessageResultModel> GetMessage(string id, string format = MessageFormat.Full)
+        private async Task<MessageResultModel> GetMessage(string id, string format = MessageFormat.Full)
         {
             var uri = "https://www.googleapis.com/gmail/v1/users/me/messages/" + id;
             if (format != MessageFormat.Full) uri = uri + "?format=" + format;
@@ -38,13 +39,13 @@ namespace GmailBackupper
             return JsonConvert.DeserializeObject<MessageResultModel>(json);
         }
 
-        public async Task GetMessageStr(string id, Func<Stream, Task> func)
+        private async Task GetMessageStr(string id, Func<Stream, Task> func)
         {
             var uri = "https://www.googleapis.com/gmail/v1/users/me/messages/" + id;
             await GetBytes(uri, func);
         }
 
-        public static class MessageFormat
+        private static class MessageFormat
         {
             public const string Full = "full";
             public const string Metadata = "metadata";
@@ -54,7 +55,7 @@ namespace GmailBackupper
 
         public MessageEnamerator GetMessageEnamerator()
         {
-            return new MessageEnamerator(GetMessages);
+            return new MessageEnamerator(this);
         }
 
         private async Task<MessagesResultModel> GetMessages(string pageToken = null)
@@ -69,39 +70,56 @@ namespace GmailBackupper
 
         public class MessageEnamerator
         {
-            private Func<string, Task<MessagesResultModel>> _messagesGetter;
-            private SemaphoreSlim _sem = new SemaphoreSlim(1);
+            private static readonly Regex _base64UrlRegex = new Regex(@"[-_]");
 
+            private Gmail _gmail;
             private MessagesResultModel _current;
             private int _index;
 
-            public MessageEnamerator(Func<string, Task<MessagesResultModel>> messagesGetter)
+            public string CurrentMessageId => _current.Messages[_index].Id;
+
+            public MessageEnamerator(Gmail gmail) => _gmail = gmail;
+
+            public async Task<bool> Next()
             {
-                _messagesGetter = messagesGetter;
+                _index++;
+                if (_current == null || _current.Messages.Length <= _index)
+                {
+                    if (_current != null && _current.NextPageToken == null) return false;
+
+                    _current = await _gmail.GetMessages(_current?.NextPageToken);
+                    _index = 0;
+                }
+
+                return true;
             }
 
-            public async Task<MessagesResultMessageModel> GetNextMessage()
+            public async Task StoreFullMessage(string dstPath)
             {
-                try
+                using (var stream = File.Create(dstPath))
                 {
-                    await _sem.WaitAsync();
-                    if (_current == null)
+                    await _gmail.GetMessageStr(CurrentMessageId, async src =>
                     {
-                        _current = await _messagesGetter(null);
-                    }
-                    else if (_current.Messages.Length <= _index)
-                    {
-                        if (_current.NextPageToken == null) return null;
-                        _current = await _messagesGetter(_current.NextPageToken);
-                        _index = 0;
-                    }
+                        await src.CopyToAsync(stream);
+                    });
+                }
+            }
 
-                    return _current.Messages[_index++];
-                }
-                finally
-                {
-                    _sem.Release();
-                }
+            public async Task<byte[]> GetRawMessage()
+            {
+                var model = await _gmail.GetMessage(CurrentMessageId, MessageFormat.Raw);
+                var str = _base64UrlRegex.Replace(model.raw, m => m.Value == "-" ? "+" : "/");
+                return Convert.FromBase64String(str);
+            }
+
+            public async Task<MessageResultModel> GetMinimalMessage()
+            {
+                return await _gmail.GetMessage(CurrentMessageId, MessageFormat.Minimal);
+            }
+
+            public async Task MoveToTrash()
+            {
+                await _gmail.MoveToTrash(CurrentMessageId);
             }
         }
 
