@@ -1,4 +1,5 @@
-﻿using Newtonsoft.Json;
+﻿using GmailBackupper.Models;
+using Newtonsoft.Json;
 using System;
 using System.IO;
 using System.Net;
@@ -31,18 +32,18 @@ namespace GmailBackupper
             var json = await Post(uri);
         }
 
-        private async Task<MessageResultModel> GetMessage(string id, string format = MessageFormat.Full)
+        private async Task<T> GetMessage<T>(string id, string format = MessageFormat.Full)
         {
             var uri = "https://www.googleapis.com/gmail/v1/users/me/messages/" + id;
             if (format != MessageFormat.Full) uri = uri + "?format=" + format;
             var json = await Get(uri);
-            return JsonConvert.DeserializeObject<MessageResultModel>(json);
+            return JsonConvert.DeserializeObject<T>(json);
         }
 
-        private async Task GetMessageStr(string id, Func<Stream, Task> func)
+        private async Task StoreMessage(string id, Func<Stream, Task> func)
         {
             var uri = "https://www.googleapis.com/gmail/v1/users/me/messages/" + id;
-            await GetBytes(uri, func);
+            await FuncStream(uri, func);
         }
 
         private static class MessageFormat
@@ -98,7 +99,7 @@ namespace GmailBackupper
             {
                 using (var stream = File.Create(dstPath))
                 {
-                    await _gmail.GetMessageStr(CurrentMessageId, async src =>
+                    await _gmail.StoreMessage(CurrentMessageId, async src =>
                     {
                         await src.CopyToAsync(stream);
                     });
@@ -107,20 +108,41 @@ namespace GmailBackupper
 
             public async Task<byte[]> GetRawMessage()
             {
-                var model = await _gmail.GetMessage(CurrentMessageId, MessageFormat.Raw);
-                var str = _base64UrlRegex.Replace(model.raw, m => m.Value == "-" ? "+" : "/");
+                var model = await _gmail.GetMessage<RawMessageResult>(CurrentMessageId, MessageFormat.Raw);
+                var str = _base64UrlRegex.Replace(model.Raw, m => m.Value == "-" ? "+" : "/");
                 return Convert.FromBase64String(str);
             }
 
-            public async Task<MessageResultModel> GetMinimalMessage()
+            public async Task<MinMessage> GetMinimalMessage()
             {
-                return await _gmail.GetMessage(CurrentMessageId, MessageFormat.Minimal);
+                return await _gmail.GetMessage<MinMessage>(CurrentMessageId, MessageFormat.Minimal);
             }
 
             public async Task MoveToTrash()
             {
                 await _gmail.MoveToTrash(CurrentMessageId);
             }
+        }
+
+        private class MessagesResultModel
+        {
+            [JsonProperty("messages")]
+            public MessagesResultMessageModel[] Messages { get; set; }
+
+            [JsonProperty("nextPageToken")]
+            public string NextPageToken { get; set; }
+
+            [JsonProperty("resultSizeEstimate")]
+            public int ResultSizeEstimate { get; set; }
+        }
+
+        private class MessagesResultMessageModel
+        {
+            [JsonProperty("id")]
+            public string Id { get; set; }
+
+            [JsonProperty("threadId")]
+            public string ThreadId { get; set; }
         }
 
         private async Task RefreshAccessToken()
@@ -138,7 +160,7 @@ namespace GmailBackupper
                 var content = $"client_secret={_clientSecret}&grant_type=refresh_token&refresh_token={_refreshToken}&client_id={_clientId}";
 
                 var json = await Post(uri, content, false);
-                var model = JsonConvert.DeserializeObject<RefreshAccessTokenResultModel>(json);
+                var model = JsonConvert.DeserializeObject<RefreshAccessTokenResult>(json);
 
                 _accessToken = model.AccessToken;
                 _nextRefresh = DateTime.Now.AddMinutes(30);
@@ -151,7 +173,19 @@ namespace GmailBackupper
             }
         }
 
-        private async Task GetBytes(string uri, Func<Stream, Task> func)
+        private class RefreshAccessTokenResult
+        {
+            [JsonProperty("access_token")]
+            public string AccessToken { get; set; }
+
+            [JsonProperty("token_type")]
+            public string TokenType { get; set; }
+
+            [JsonProperty("expires_in")]
+            public int ExpiresIn { get; set; }
+        }
+
+        private async Task FuncStream(string uri, Func<Stream, Task> func)
         {
             var request = WebRequest.CreateHttp(uri);
             request.Method = "Get";

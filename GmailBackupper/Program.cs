@@ -60,25 +60,25 @@ namespace GmailBackupper
                     }
 
                     var json = await File.ReadAllTextAsync(jsonName);
-                    var message = JsonConvert.DeserializeObject<MessageResultModel>(json);
-                    if (message == null || message.internalDate == 0)
+                    var message = JsonConvert.DeserializeObject<MinMessage>(json);
+                    if (message == null || message.InternalDate == 0)
                     {
                         File.Delete(jsonName);
                         Console.WriteLine();
                         continue;
                     }
 
-                    var time = DateTimeOffset.FromUnixTimeMilliseconds(message.internalDate).ToOffset(_japanTimeSpan);
+                    var time = DateTimeOffset.FromUnixTimeMilliseconds(message.InternalDate).ToOffset(_japanTimeSpan);
                     Console.Write($" {time:yyyy-MM-dd HH:mm:ss}");
 
-                    var fn = $"{time:yyyyMMddHHmmss}_{message.id}";
-                    var from = message.payload.headers.FirstOrDefault(t => t.name.Equals("From", StringComparison.CurrentCultureIgnoreCase));
+                    var fn = $"{time:yyyyMMddHHmmss}_{message.Id}";
+                    var from = message.Payload.Headers.FirstOrDefault(t => t.Name.Equals("From", StringComparison.CurrentCultureIgnoreCase));
                     if (from != null)
                     {
-                        var m = _mailHeaderFromRegex.Match(from.value);
+                        var m = _mailHeaderFromRegex.Match(from.Value);
                         if (!m.Success)
                         {
-                            fn += "_" + from.value.Trim(20);
+                            fn += "_" + from.Value.Trim(20);
                         }
                         else
                         {
@@ -86,10 +86,10 @@ namespace GmailBackupper
                         }
                     }
 
-                    var subj = message.payload.headers.FirstOrDefault(t => t.name.Equals("Subject", StringComparison.CurrentCultureIgnoreCase));
+                    var subj = message.Payload.Headers.FirstOrDefault(t => t.Name.Equals("Subject", StringComparison.CurrentCultureIgnoreCase));
                     if (subj != null)
                     {
-                        fn += "_" + subj.value.Trim(20);
+                        fn += "_" + subj.Value.Trim(20);
                     }
 
                     fn = _fileNameRegex.Replace(fn, "");
@@ -113,9 +113,9 @@ namespace GmailBackupper
                     if (time < limit)
                     {
                         message = await me.GetMinimalMessage();
-                        if (message.labelIds.Any(t => targetLabels.Contains(t)))
+                        if (message.LabelIds.Any(t => targetLabels.Contains(t)))
                         {
-                            if (message.labelIds.All(t => t != "STARRED"))
+                            if (message.LabelIds.All(t => t != "STARRED"))
                             {
                                 await me.MoveToTrash();
                                 Console.Write(" Trash");
