@@ -3,6 +3,7 @@ using Newtonsoft.Json;
 using System;
 using System.IO;
 using System.Linq;
+using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
@@ -71,30 +72,12 @@ namespace GmailBackupper
                     var time = DateTimeOffset.FromUnixTimeMilliseconds(message.InternalDate).ToOffset(_japanTimeSpan);
                     Console.Write($" {time:yyyy-MM-dd HH:mm:ss}");
 
-                    var fn = $"{time:yyyyMMddHHmmss}_{message.Id}";
-                    var from = message.Payload.Headers.FirstOrDefault(t => t.Name.Equals("From", StringComparison.CurrentCultureIgnoreCase));
-                    if (from != null)
-                    {
-                        var m = _mailHeaderFromRegex.Match(from.Value);
-                        if (!m.Success)
-                        {
-                            fn += "_" + from.Value.Trim(20);
-                        }
-                        else
-                        {
-                            fn += "_" + (string.IsNullOrWhiteSpace(m.Groups[1].Value) ? m.Groups[2].Value : m.Groups[1].Value).Trim(20);
-                        }
-                    }
+                    var name = GenerateName(message);
+                    Console.WriteLine(name);
+                    name = $"{time:yyyyMMddHHmmss}_{message.Id}" + name;
 
-                    var subj = message.Payload.Headers.FirstOrDefault(t => t.Name.Equals("Subject", StringComparison.CurrentCultureIgnoreCase));
-                    if (subj != null)
-                    {
-                        fn += "_" + subj.Value.Trim(20);
-                    }
-
-                    fn = _fileNameRegex.Replace(fn, "");
                     var pathE = Path.Combine(dstPath, time.ToString("yyyy"), time.ToString("yyyy-MM"), time.ToString("yyyy-MM-dd"));
-                    var fileE = Path.Combine(pathE, fn + ".eml");
+                    var fileE = Path.Combine(pathE, name + ".eml");
 
                     if (!File.Exists(fileE))
                     {
@@ -149,6 +132,33 @@ namespace GmailBackupper
                     Console.WriteLine(exp);
                 }
             }
+        }
+
+        private static string GenerateName(MinMessage message)
+        {
+            var sb = new StringBuilder();
+
+            var from = message.Payload.Headers.FirstOrDefault(t => t.Name.Equals("From", StringComparison.CurrentCultureIgnoreCase));
+            if (from != null)
+            {
+                var m = _mailHeaderFromRegex.Match(from.Value);
+                if (!m.Success)
+                {
+                    sb.Append("_" + from.Value.Trim(20));
+                }
+                else
+                {
+                    sb.Append("_" + (string.IsNullOrWhiteSpace(m.Groups[1].Value) ? m.Groups[2].Value : m.Groups[1].Value).Trim(20));
+                }
+            }
+
+            var subj = message.Payload.Headers.FirstOrDefault(t => t.Name.Equals("Subject", StringComparison.CurrentCultureIgnoreCase));
+            if (subj != null)
+            {
+                sb.Append("_" + subj.Value.Trim(20));
+            }
+
+            return _fileNameRegex.Replace(sb.ToString(), "");
         }
     }
 }
