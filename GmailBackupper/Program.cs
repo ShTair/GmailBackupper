@@ -46,9 +46,10 @@ namespace GmailBackupper
 
             while (await me.Next())
             {
+                string id = null;
                 try
                 {
-                    var id = me.CurrentMessageId;
+                    id = me.CurrentMessageId;
                     Console.Write(id);
 
                     var jsonPath = Path.Combine(dstPath, "json", id.Substring(14), id.Substring(12));
@@ -130,6 +131,13 @@ namespace GmailBackupper
                 {
                     Console.WriteLine();
                     Console.WriteLine(exp);
+
+                    var fn = DateTimeOffset.Now.ToOffset(_japanTimeSpan).ToString("yyyyMMddHHmmss") + ".txt";
+                    fn = Path.Combine(dstPath, fn);
+
+                    var str = exp.ToString();
+                    if (id != null) str = id + "\r\n" + str;
+                    await File.WriteAllTextAsync(fn, str);
                 }
             }
         }
