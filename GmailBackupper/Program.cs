@@ -74,7 +74,7 @@ namespace GmailBackupper
                     Console.Write($" {time:yyyy-MM-dd HH:mm:ss}");
 
                     var name = GenerateName(message);
-                    Console.WriteLine(name);
+                    Console.Write(" " + name);
                     name = $"{time:yyyyMMddHHmmss}_{message.Id}" + name;
 
                     var pathE = Path.Combine(dstPath, time.ToString("yyyy"), time.ToString("yyyy-MM"), time.ToString("yyyy-MM-dd"));
