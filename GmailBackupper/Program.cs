@@ -109,16 +109,18 @@ namespace GmailBackupper
                         if (time < limit)
                         {
                             message = await me.GetMinimalMessage();
-
-                            var deleteRule = deleteRules.FirstOrDefault(t => message.LabelIds.Contains(t.Id));
-                            if (deleteRule != null && (deleteRule.Limit < 0 || time > deleteRule.LimitDate))
+                            if (!message.LabelIds.Contains("TRASH"))
                             {
-                                aliveThreads.Add(threadId);
-                            }
-                            else
-                            {
-                                await me.MoveToTrash();
-                                Console.Write(" Trash");
+                                var deleteRule = deleteRules.FirstOrDefault(t => message.LabelIds.Contains(t.Id));
+                                if (deleteRule != null && (deleteRule.Limit < 0 || time > deleteRule.LimitDate))
+                                {
+                                    aliveThreads.Add(threadId);
+                                }
+                                else
+                                {
+                                    await me.MoveToTrash();
+                                    Console.Write(" Trash");
+                                }
                             }
                         }
                         else
