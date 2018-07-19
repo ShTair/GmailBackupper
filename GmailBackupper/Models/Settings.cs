@@ -1,4 +1,7 @@
-﻿namespace GmailBackupper.Models
+﻿using Newtonsoft.Json;
+using System;
+
+namespace GmailBackupper.Models
 {
     class GlobalSettings
     {
@@ -25,5 +28,8 @@
         public string Id { get; set; }
 
         public int Limit { get; set; }
+
+        [JsonIgnore]
+        public DateTimeOffset LimitDate { get; set; }
     }
 }

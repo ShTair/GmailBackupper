@@ -1,6 +1,7 @@
 ﻿using GmailBackupper.Models;
 using Newtonsoft.Json;
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -44,12 +45,20 @@ namespace GmailBackupper
             var me = gmail.GetMessageEnamerator();
             var limit = DateTimeOffset.Now.AddDays(-limitDays);
 
+            var aliveThreads = new HashSet<string>();
+            foreach (var deleteRule in deleteRules)
+            {
+                deleteRule.LimitDate = DateTimeOffset.Now.AddDays(-deleteRule.Limit);
+            }
+
             while (await me.Next())
             {
                 string id = null;
                 try
                 {
                     id = me.CurrentMessageId;
+                    var threadId = me.CurrentMessageThreadId;
+
                     Console.Write(id);
 
                     var jsonPath = Path.Combine(dstPath, "json", id.Substring(14), id.Substring(12));
@@ -94,34 +103,26 @@ namespace GmailBackupper
                         Console.Write(" Store");
                     }
 
-                    if (time < limit)
+                    if (!aliveThreads.Contains(threadId))
                     {
-                        message = await me.GetMinimalMessage();
-                        bool isMatch = false;
-
-                        foreach (var deleteRule in deleteRules)
+                        if (time < limit)
                         {
-                            if (message.LabelIds.Contains(deleteRule.Id))
-                            {
-                                if (deleteRule.Limit >= 0)
-                                {
-                                    var ilimit = DateTimeOffset.Now.AddDays(-deleteRule.Limit);
-                                    if (time < ilimit)
-                                    {
-                                        await me.MoveToTrash();
-                                        Console.Write(" Trash");
-                                    }
-                                }
+                            message = await me.GetMinimalMessage();
 
-                                isMatch = true;
-                                break;
+                            var deleteRule = deleteRules.FirstOrDefault(t => message.LabelIds.Contains(t.Id));
+                            if (deleteRule != null && (deleteRule.Limit < 0 || time > deleteRule.LimitDate))
+                            {
+                                aliveThreads.Add(threadId);
+                            }
+                            else
+                            {
+                                await me.MoveToTrash();
+                                Console.Write(" Trash");
                             }
                         }
-
-                        if (!isMatch)
+                        else
                         {
-                            await me.MoveToTrash();
-                            Console.Write(" Trash");
+                            aliveThreads.Add(threadId);
                         }
                     }
 

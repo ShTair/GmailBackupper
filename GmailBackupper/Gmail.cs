@@ -79,6 +79,8 @@ namespace GmailBackupper
 
             public string CurrentMessageId => _current.Messages[_index].Id;
 
+            public string CurrentMessageThreadId => _current.Messages[_index].ThreadId;
+
             public MessageEnamerator(Gmail gmail) => _gmail = gmail;
 
             public async Task<bool> Next()
