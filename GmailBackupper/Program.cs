@@ -84,6 +84,7 @@ namespace GmailBackupper
 
                     var name = GenerateName(message);
                     Console.Write(" " + name);
+                    Console.CursorLeft = 80;
                     name = $"{time:yyyyMMddHHmmss}_{message.Id}" + name;
 
                     var pathE = Path.Combine(dstPath, time.ToString("yyyy"), time.ToString("yyyy-MM"), time.ToString("yyyy-MM-dd"));
